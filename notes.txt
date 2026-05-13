@@ -1,3 +1,33 @@
 Hi whats up
 
 starting May 11 woohoo wish me luck
+
+May 10-11: git & github basics
+
+- [x]  set up github and do intro lesson
+- [x]  set up github repos and tech workflow
+    - learn git essentials- command line
+        - [x]  [guide](https://www.freecodecamp.org/news/command-line-for-beginners/) for command line MacOS
+        - [x]  [guide](https://git-scm.com/book/en/v2/Getting-Started-The-Command-Line) book
+        - [x]  [git guide](https://webtuu.com/blog/04/a-laymans-introduction-to-git)
+        - [x]  [beginner’s guide!](https://www.reddit.com/r/git/comments/zuq54x/a_beginners_guide_to_git_a_comprehensive/)
+    
+    [git notes](https://www.notion.so/git-notes-35d91619f04680fe8588db02c7924128?pvs=21)
+    
+
+May 12- project basics
+
+- [ ]  start project! recreate letterboxd stats page
+    - [x]  recreate basic lbx stats page
+        - [x]  data analysis in pynb
+        - [ ]  create data visualizations
+- [ ]  convert ipynb to py → print to html
+
+May xx: web/app development 
+
+- [ ]  customize output
+    - [ ]  add film covers & visuals
+    - [ ]  integrate interactivity
+        - [ ]  buttons, sliders, tooltip, etc.
+    - [ ]  streamlit?
+- [ ]  API integration
