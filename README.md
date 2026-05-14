@@ -8,7 +8,7 @@
 
 A personal data project exploring my Letterboxd watching history. Built from my own exported data, the dashboard visualizes rating patterns, viewing habits, decade preferences, and more.
 
-Work in progress — summer 2026.
+Work in progress — Summer 2026.
 
 # What's inside
 

@@ -1,4 +1,4 @@
-# Letterboxd Dashboard — Reid B.
+# Letterboxd Dashboard OUTLINE
 
 ## Import & Load
 
