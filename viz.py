@@ -5,38 +5,79 @@ from plotly.subplots import make_subplots
 import numpy as np
 from scipy import stats
 
-# ── Load & clean ───────────────────────────────────────────────────────────────
+# ── Import & Load ───────────────────────────────────────────────────────────────
 
-ratings   = pd.read_csv("data/ratings.csv")
-diary     = pd.read_csv("data/diary.csv")
-watched   = pd.read_csv("data/watched.csv")
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+
+ratings = pd.read_csv("data/ratings.csv")
+diary = pd.read_csv("data/diary.csv")
+watched = pd.read_csv("data/watched.csv")
 watchlist = pd.read_csv("data/watchlist.csv")
 
 for df in [ratings, diary, watched, watchlist]:
-    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
+    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+    if 'year' in df.columns:
+        df['year'] = df['year'].astype('Int64')
+    if 'watched_date' in df.columns:
+        df['watched_date'] = pd.to_datetime(df['watched_date'], errors='coerce')
 
-ratings["year"]       = ratings["year"].astype("Int64")
-ratings["decade"]     = (ratings["year"] // 10 * 10).astype(str) + "s"
-diary["watched_date"] = pd.to_datetime(diary["watched_date"], errors="coerce")
-diary["rating"]       = pd.to_numeric(diary["rating"], errors="coerce")
-diary_dated           = diary.dropna(subset=["watched_date"])
+diary_dated = diary.dropna(subset=['watched_date'])
+diary_year  = diary_dated.groupby(diary_dated['watched_date'].dt.year)['name'].count()
 
 # ── Header stats ───────────────────────────────────────────────────────────────
 
-films_watched   = diary["name"].nunique()
-avg_rating      = round(ratings["rating"].mean(), 2)
-top_year        = int(ratings["year"].value_counts().idxmax())
-films_per_day_s = diary_dated.groupby(diary_dated["watched_date"].dt.date)["name"].count()
-multi_film_days = int((films_per_day_s >= 2).sum())
+# films watched 
+films_watched = len(watched)
+print(f'Films watched: {films_watched}')
 
-watch_dates = diary_dated["watched_date"].dt.date.drop_duplicates().sort_values().reset_index(drop=True)
-longest, current = 1, 1
+# longest streak
+# streak (days)
+watch_dates = (
+    diary.watched_date.dt.date.drop_duplicates().sort_values().reset_index(drop=True)
+)
+
+longest_streak = 1
+current_streak = 1
+
 for i in range(1, len(watch_dates)):
-    if (watch_dates[i] - watch_dates[i - 1]).days == 1:
-        current += 1
-        longest = max(longest, current)
+    gap = (watch_dates[i] - watch_dates[i - 1]).days
+    if gap == 1:
+        current_streak += 1
+        longest_streak = max(longest_streak, current_streak)
     else:
-        current = 1
+        current_streak = 1
+
+print(f'Longest streak: {longest_streak} consecutive days')
+
+# Streak (weeks)
+watch_weeks = (
+    diary['watched_date'].dt.to_period('W').drop_duplicates().sort_values().reset_index(drop=True)
+)
+
+longest_week_streak = 1
+current_week_streak = 1
+
+for i in range(1, len(watch_weeks)):
+    gap = watch_weeks[i].week - watch_weeks[i - 1].week
+    year_gap = watch_weeks[i].year - watch_weeks[i - 1].year
+    
+    is_consecutive = (gap == 1) or (year_gap == 1 and gap < 0)
+    
+    if is_consecutive:
+        current_week_streak += 1
+        longest_week_streak = max(longest_week_streak, current_week_streak)
+    else:
+        current_week_streak = 1
+
+print(f'Longest weekly streak: {longest_week_streak} consecutive weeks')
+
+# multi-film days
+films_per_day = diary.groupby(diary['watched_date'].dt.date)['name'].count()
+multi_film_days = (films_per_day >= 2).sum()
+
+print(f'Multi-film days: {multi_film_days}')
 
 # ── Chart helpers ──────────────────────────────────────────────────────────────
 
