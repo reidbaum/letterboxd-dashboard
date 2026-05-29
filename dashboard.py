@@ -586,7 +586,7 @@ html = f"""<!DOCTYPE html>
 </body>
 </html>"""
 
-output_path = 'visualizations.html'
+output_path = 'dashboard.html'
 with open(output_path, 'w') as f:
     f.write(html)
 
