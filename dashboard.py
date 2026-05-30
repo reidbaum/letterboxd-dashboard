@@ -94,26 +94,11 @@ _section('Rating Distribution')
 
 rc = ratings['rating'].value_counts().sort_index().reset_index()
 rc.columns = ['rating', 'count']
+rc['rating'] = rc['rating'].astype(str)
 fig = px.bar(rc, x='rating', y='count',
              labels={'rating': 'Rating (★)', 'count': 'Films'},
              color='count', color_continuous_scale=GREEN_SCALE)
 fig.update_layout(coloraxis_showscale=False)
-_show(fig)
-
-# ── Films watched per month ───────────────────────────────────────────────────
-
-_section('Films Watched per Month')
-
-monthly = (
-    diary_dated
-    .groupby(diary_dated['watched_date'].dt.to_period('M'))
-    .size().reset_index(name='films')
-)
-monthly['month'] = monthly['watched_date'].astype(str)
-fig = px.area(monthly, x='month', y='films',
-              labels={'month': 'Month', 'films': 'Films watched'},
-              color_discrete_sequence=[LBX_GREEN])
-fig.update_xaxes(tickangle=45)
 _show(fig, wide=True)
 
 # ── Films watched by release year ─────────────────────────────────────────────
@@ -157,7 +142,7 @@ fig = px.bar(fy, x='year', y='films',
              labels={'year': 'Year', 'films': 'Films watched'},
              color='films', color_continuous_scale=GREEN_SCALE)
 fig.update_layout(coloraxis_showscale=False)
-_show(fig)
+_show(fig, wide=True)
 
 # ── Films watched by decade ───────────────────────────────────────────────────
 
@@ -477,7 +462,7 @@ html = f"""<!DOCTYPE html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Letterboxd Dashboard</title>
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-3.5.0.min.js"></script>
   <style>
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
