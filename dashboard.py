@@ -101,17 +101,35 @@ def build_content(filter_year=None):
 
     mfd = int((d.groupby(d['watched_date'].dt.date)['name'].count() >= 2).sum())
 
-    stats_html = f"""
-        <div class="stat"><div class="stat-val">{films_stat:,}</div><div class="stat-lbl">Films watched</div></div>
+    base_stats = f"""
+        <div class="stat"><div class="stat-val">{films_stat:,}</div><div class="stat-lbl">Films logged</div></div>
         <div class="stat"><div class="stat-val">{avg_stat}</div><div class="stat-lbl">Avg rating</div></div>
         <div class="stat"><div class="stat-val">{ls}</div><div class="stat-lbl">Longest streak (days)</div></div>
         <div class="stat"><div class="stat-val">{lws}</div><div class="stat-lbl">Longest streak (weeks)</div></div>
         <div class="stat"><div class="stat-val">{mfd}</div><div class="stat-lbl">Multi-film days</div></div>
     """
 
-    # ── Rating Distribution ───────────────────────────────────────────────────
+    if filter_year is not None and films_stat > 0:
+        avg_per_month = round(films_stat / 12, 1)
+        avg_per_week  = round(films_stat / 52, 1)
+        d_chron       = d.sort_values('watched_date')
+        first_film    = d_chron.iloc[0]['name']
+        last_film     = d_chron.iloc[-1]['name']
+        first_date    = d_chron.iloc[0]['watched_date'].strftime('%b %-d')
+        last_date     = d_chron.iloc[-1]['watched_date'].strftime('%b %-d')
+        year_stats    = f"""
+        <div class="stat"><div class="stat-val">{avg_per_month}</div><div class="stat-lbl">Avg per month</div></div>
+        <div class="stat"><div class="stat-val">{avg_per_week}</div><div class="stat-lbl">Avg per week</div></div>
+        <div class="stat stat-film"><div class="stat-val stat-title">{first_film}</div><div class="stat-lbl">First film ({first_date})</div></div>
+        <div class="stat stat-film"><div class="stat-val stat-title">{last_film}</div><div class="stat-lbl">Most recent ({last_date})</div></div>
+        """
+        stats_html = base_stats + year_stats
+    else:
+        stats_html = base_stats
 
-    if not d_ratings.empty:
+    # ── Rating Distribution (all-time only) ──────────────────────────────────
+
+    if filter_year is None and not d_ratings.empty:
         rc = d_ratings['rating'].value_counts().sort_index().reset_index()
         rc.columns = ['rating', 'count']
         rc['rating'] = rc['rating'].astype(str)
@@ -120,9 +138,9 @@ def build_content(filter_year=None):
                      color_discrete_sequence=[LBX_GREEN])
         add('Rating Distribution', fig, wide=True)
 
-    # ── Films by Release Year ─────────────────────────────────────────────────
+    # ── Films by Release Year (all-time only) ─────────────────────────────────
 
-    if not r.empty:
+    if filter_year is None and not r.empty:
         yc = r['year'].value_counts().sort_index().reset_index()
         yc.columns = ['year', 'count']
         fig = px.bar(yc, x='year', y='count',
@@ -132,15 +150,14 @@ def build_content(filter_year=None):
         fig.update_xaxes(tickangle=45)
         add('Films by Release Year', fig, wide=True)
 
-    # ── Avg Rating by Release Year ────────────────────────────────────────────
+    # ── Avg Rating by Release Year (all-time only) ────────────────────────────
 
-    if not r.empty:
+    if filter_year is None and not r.empty:
         ry = (r.groupby('year')['rating']
               .agg(['mean', 'count']).reset_index()
               .rename(columns={'mean': 'avg_rating', 'count': 'films'})
               .sort_values('year'))
-        min_yr = 2 if filter_year is not None else 3
-        ry.loc[ry['films'] < min_yr, 'avg_rating'] = None
+        ry.loc[ry['films'] < 3, 'avg_rating'] = None
         if not ry.dropna(subset=['avg_rating']).empty:
             fig = px.bar(ry, x='year', y='avg_rating',
                          labels={'year': 'Release year', 'avg_rating': 'Avg rating'},
@@ -170,9 +187,53 @@ def build_content(filter_year=None):
                      color_discrete_sequence=[LBX_GREEN])
         add('Films Logged per Month', fig, wide=True)
 
-    # ── Films by Decade ───────────────────────────────────────────────────────
+    # ── Films by Week (year views only) ──────────────────────────────────────
 
-    if not r.empty:
+    if filter_year is not None:
+        d_wk = d.copy()
+        d_wk['week_num'] = d_wk['watched_date'].dt.isocalendar().week.astype(int)
+        fw = d_wk.groupby('week_num').size().reset_index()
+        fw.columns = ['week', 'films']
+        base_wk = pd.DataFrame({'week': range(1, 53)})
+        fw = base_wk.merge(fw, on='week', how='left').fillna(0)
+        fw['films'] = fw['films'].astype(int)
+        fig = px.bar(fw, x='week', y='films',
+                     labels={'week': 'Week of year', 'films': 'Films watched'},
+                     color='films', color_continuous_scale=GREEN_SCALE)
+        fig.update_layout(coloraxis_showscale=False,
+                          xaxis=dict(tickmode='linear', tick0=1, dtick=4))
+        add('Films by Week', fig, wide=True)
+
+    # ── Film Milestones (year views only) ────────────────────────────────────
+
+    if filter_year is not None:
+        d_ms  = d.sort_values('watched_date').reset_index(drop=True)
+        milestones = []
+        for idx in range(49, len(d_ms), 50):
+            row = d_ms.iloc[idx]
+            milestones.append({
+                'n':    idx + 1,
+                'name': row['name'],
+                'date': row['watched_date'].strftime('%b %-d'),
+            })
+        if milestones:
+            rows_m = ''
+            for m in milestones:
+                rows_m += (f'<tr><td class="t-rank">{m["n"]}</td>'
+                           f'<td class="t-name">{m["name"]}</td>'
+                           f'<td class="t-year">{m["date"]}</td></tr>')
+            ms_html = (
+                '<div class="table-wrap">'
+                '<table class="top-table">'
+                '<thead><tr><th>#</th><th>Film</th><th>Date</th></tr></thead>'
+                f'<tbody>{rows_m}</tbody>'
+                '</table></div>'
+            )
+            sections.append({'title': 'Film Milestones', 'html': ms_html, 'wide': False})
+
+    # ── Films by Decade (all-time only) ──────────────────────────────────────
+
+    if filter_year is None and not r.empty:
         dc = r['decade'].value_counts().sort_index().reset_index()
         dc.columns = ['decade', 'count']
         fig = px.bar(dc, x='decade', y='count',
@@ -180,14 +241,13 @@ def build_content(filter_year=None):
                      color_discrete_sequence=[LBX_GREEN])
         add('Films by Decade', fig)
 
-    # ── Avg Rating by Decade ──────────────────────────────────────────────────
+    # ── Avg Rating by Decade (all-time only) ─────────────────────────────────
 
-    if not r.empty:
-        min_dec = 3 if filter_year is not None else 20
+    if filter_year is None and not r.empty:
         ds = (r.groupby('decade')['rating']
               .agg(['mean', 'count']).reset_index()
               .rename(columns={'mean': 'avg_rating', 'count': 'films'})
-              .query(f'films >= {min_dec}')
+              .query('films >= 20')
               .sort_values('decade'))
         if not ds.empty:
             fig = px.bar(ds, x='decade', y='avg_rating',
@@ -292,9 +352,9 @@ def build_content(filter_year=None):
             fig.update_layout(yaxis_range=[0, 5.5])
             add('Avg Rating Over Time', fig)
 
-    # ── Half Star vs Full Star ────────────────────────────────────────────────
+    # ── Half Star vs Full Star (all-time only) ───────────────────────────────
 
-    if not d_ratings.empty:
+    if filter_year is None and not d_ratings.empty:
         dr2 = d_ratings.copy()
         dr2['is_half'] = dr2['rating'] % 1 != 0
         hf  = dr2['is_half'].value_counts().rename({True: 'Half star', False: 'Full star'})
@@ -308,9 +368,9 @@ def build_content(filter_year=None):
         fig.update_layout(yaxis_range=[0, 100], yaxis_title='% of ratings')
         add('Rating Style: Half Star vs Full Star', fig, wide=True)
 
-    # ── Ratings vs Normal Distribution ───────────────────────────────────────
+    # ── Ratings vs Normal Distribution (all-time only) ───────────────────────
 
-    if len(d_ratings) >= 10:
+    if filter_year is None and len(d_ratings) >= 10:
         rv    = d_ratings['rating'].dropna()
         rc2   = rv.value_counts(normalize=True).sort_index()
         xn    = np.linspace(0.5, 5.0, 300)
@@ -325,9 +385,9 @@ def build_content(filter_year=None):
         fig.update_layout(xaxis_title='Rating (★)', yaxis_title='Proportion of films')
         add('Ratings vs Normal Distribution', fig)
 
-    # ── Old vs New Films ──────────────────────────────────────────────────────
+    # ── Old vs New Films (all-time only) ─────────────────────────────────────
 
-    if not r.empty:
+    if filter_year is None and not r.empty:
         r2       = r.copy()
         r2['era'] = r2['year'].apply(
             lambda y: 'Last 5 years' if y >= 2021 else '5+ years ago'
@@ -380,26 +440,22 @@ def build_content(filter_year=None):
             fig.update_layout(barmode='stack', xaxis_title='Month', yaxis_title='Films')
             add('First Watches vs Rewatches', fig, wide=True)
 
-    # ── Watchlist Analysis ────────────────────────────────────────────────────
+    # ── Watchlist Analysis (all-time only) ───────────────────────────────────
 
-    wl = watchlist.copy()
-    wa = watched.copy()
-    wl['date'] = pd.to_datetime(wl['date'], errors='coerce')
-    wa['date'] = pd.to_datetime(wa['date'], errors='coerce')
+    if filter_year is None:
+        wl = watchlist.copy()
+        wa = watched.copy()
+        wl['date'] = pd.to_datetime(wl['date'], errors='coerce')
+        wa['date'] = pd.to_datetime(wa['date'], errors='coerce')
 
-    if filter_year is not None:
-        wl = wl[wl['date'].dt.year == filter_year]
-        wa = wa[wa['date'].dt.year == filter_year]
+        added_wl   = wl.groupby(wl['date'].dt.to_period('M')).size().reset_index(name='added')
+        added_wl['date'] = added_wl['date'].astype(str)
+        cleared_wl = wa.groupby(wa['date'].dt.to_period('M')).size().reset_index(name='watched_count')
+        cleared_wl['date'] = cleared_wl['date'].astype(str)
+        growth = (added_wl.merge(cleared_wl, on='date', how='outer')
+                  .fillna(0).sort_values('date'))
 
-    added_wl   = wl.groupby(wl['date'].dt.to_period('M')).size().reset_index(name='added')
-    added_wl['date'] = added_wl['date'].astype(str)
-    cleared_wl = wa.groupby(wa['date'].dt.to_period('M')).size().reset_index(name='watched_count')
-    cleared_wl['date'] = cleared_wl['date'].astype(str)
-    growth = (added_wl.merge(cleared_wl, on='date', how='outer')
-              .fillna(0).sort_values('date'))
-
-    if not growth.empty:
-        if filter_year is None:
+        if not growth.empty:
             growth['net']        = growth['added'] - growth['watched_count']
             growth['cumulative'] = growth['net'].cumsum()
             fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
@@ -416,15 +472,6 @@ def build_content(filter_year=None):
                                      line=dict(color=LBX_GREEN, width=2)), row=2, col=1)
             fig.update_layout(height=560, xaxis2_tickangle=45)
             add('Watchlist Analysis', fig, wide=True)
-        else:
-            fig = go.Figure()
-            fig.add_trace(go.Bar(x=growth['date'], y=growth['added'],
-                                 name='Added', marker_color=LBX_GREEN))
-            fig.add_trace(go.Bar(x=growth['date'], y=growth['watched_count'],
-                                 name='Watched', marker_color=LBX_ORANGE))
-            fig.update_layout(barmode='group', xaxis_title='Month',
-                              yaxis_title='Films', xaxis_tickangle=45)
-            add('Watchlist Activity', fig, wide=True)
 
     return stats_html, sections
 
@@ -542,6 +589,17 @@ html = f"""<!DOCTYPE html>
       margin-top: 0.3rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
+    }}
+    .stat-film {{
+      min-width: 180px;
+      max-width: 280px;
+    }}
+    .stat-title {{
+      font-size: 1rem !important;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 260px;
     }}
     .grid {{
       display: grid;
